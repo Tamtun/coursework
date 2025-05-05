@@ -224,7 +224,6 @@ def report_by_workday():
         logger.error(f"Ошибка отчета по типам дней: {str(e)}")
         return json_response({"error": "Внутренняя ошибка сервера"}, 500)
 
-
     return Response(response_data, status=status, mimetype="application/json")
 
 

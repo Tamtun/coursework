@@ -7,7 +7,7 @@ from src.services import (
     find_person_transfers,
     spending_by_category,
     spending_by_weekday,
-    spending_by_workday
+    spending_by_workday,
 )
 
 
@@ -40,11 +40,13 @@ def sample_person_transfers():
 
 @pytest.fixture
 def sample_dataframe():
-    return pd.DataFrame({
-        "Дата операции": pd.to_datetime(["2025-01-10", "2025-02-15", "2025-03-20"]),
-        "Категория": ["Еда", "Транспорт", "Еда"],
-        "Сумма платежа": [100, 200, 300]
-    })
+    return pd.DataFrame(
+        {
+            "Дата операции": pd.to_datetime(["2025-01-10", "2025-02-15", "2025-03-20"]),
+            "Категория": ["Еда", "Транспорт", "Еда"],
+            "Сумма платежа": [100, 200, 300],
+        }
+    )
 
 
 def test_profitable_cashback(sample_transactions):
@@ -66,12 +68,11 @@ def test_investment_bank():
 
 def test_investment_bank_invalid_format():
     """Тест ошибки при неверном формате даты"""
-    transactions = [
-        {"Дата операции": "invalid_date", "Сумма операции": 172.0}
-    ]
+    transactions = [{"Дата операции": "invalid_date", "Сумма операции": 172.0}]
     result = investment_bank("2025-03", transactions, 100)
     assert isinstance(result, dict)
     assert result["total"] == 0.0  # Проверяем, что ошибка не ломает логику
+
 
 def test_find_phone_transactions(sample_phone_transactions):
     result = find_phone_transactions(sample_phone_transactions)
@@ -108,32 +109,35 @@ def test_spending_by_workday(sample_dataframe):
     assert "Тип дня" in result.columns
     assert "Сумма платежа" in result.columns
 
+
 def test_profitable_cashback_empty():
     result = profitable_cashback(2025, 3, [])
     assert result == {"error": "Нет данных для анализа"}
+
 
 def test_profitable_cashback_missing_columns():
     transactions = [{"Дата операции": "2025-03-10", "Кешбэк": 50.0}]
     result = profitable_cashback(2025, 3, transactions)
     assert "error" in result
 
+
 def test_investment_bank_negative_amount():
     transactions = [{"Дата операции": "2025-03-10", "Сумма операции": -50.0}]
     result = investment_bank("2025-03", transactions, 100)
     assert result["total"] == 0.0
 
+
 def test_investment_bank_missing_fields():
-    transactions = [
-        {"Дата операции": "2025-03-10"},
-        {"Сумма операции": 172.0}
-    ]
+    transactions = [{"Дата операции": "2025-03-10"}, {"Сумма операции": 172.0}]
     result = investment_bank("2025-03", transactions, 100)
     assert result["total"] == 0.0
+
 
 def test_spending_by_workday_empty():
     df = pd.DataFrame(columns=["Дата операции", "Сумма платежа"])
     result = spending_by_workday(df)
     assert result.empty
+
 
 def test_spending_by_category_empty():
     df = pd.DataFrame(columns=["Дата операции", "Категория", "Сумма платежа"])
