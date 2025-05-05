@@ -7,7 +7,7 @@ from src.views import main_page
 
 @pytest.fixture
 def sample_date():
-    return pd.Timestamp("2025-04-01")  # Исправлено: теперь это Timestamp
+    return pd.Timestamp("2025-04-01")
 
 
 @pytest.fixture
