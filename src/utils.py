@@ -19,7 +19,6 @@ def load_transactions():
             thousands=None,  # Отключаем авто-форматирование чисел
             decimal=",",  # Указываем десятичный разделитель
         )
-
         # Конвертируем даты
         df["Дата операции"] = pd.to_datetime(df["Дата операции"], format="%d.%m.%Y %H:%M:%S", errors="coerce")
         return df
@@ -72,8 +71,8 @@ def get_card_stats(df: pd.DataFrame) -> list:
         cards.append(
             {
                 "last_digits": last_digits,
-                "total_spent": round(group["Сумма платежа"].sum(), 2),
-                "cashback": round(group["Сумма платежа"].sum() * 0.01, 2),
+                "total_spent": float(round(group["Сумма платежа"].sum(), 2)),
+                "cashback": float(round(group["Сумма платежа"].sum() * 0.01, 2)),
             }
         )
     return cards
@@ -81,9 +80,21 @@ def get_card_stats(df: pd.DataFrame) -> list:
 
 def get_top_transactions(df: pd.DataFrame, n: int = 5) -> list:
     """Топ-N транзакций по сумме"""
-    return df.nlargest(n, "Сумма платежа")[["Дата операции", "Сумма платежа", "Категория", "Описание"]].to_dict(
-        "records"
-    )
+    top = df.nlargest(n, "Сумма платежа")[["Дата операции", "Сумма платежа", "Категория", "Описание"]].copy()
+    top["Дата операции"] = top["Дата операции"].dt.strftime("%d.%m.%Y")
+    return top.to_dict("records")
+
+
+def get_currency_rates(currencies: list[str]) -> list[dict]:
+    """Получает курсы валют через API"""
+    try:
+        url = "https://api.exchangerate-api.com/v4/latest/USD?base=RUB"
+        response = requests.get(url)
+        rates = response.json()["rates"]
+        return [{"currency": currency, "rate": rates[currency]} for currency in currencies if currency in rates]
+    except Exception as e:
+        logger.error(f"Ошибка при получении курсов валют: {e}")
+        return []
 
 
 def get_sp500_price() -> float:

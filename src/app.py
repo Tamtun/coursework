@@ -6,7 +6,7 @@ from pathlib import Path
 from flask import Flask, Response, request
 import pandas as pd
 import numpy as np
-from services import (
+from src.services import (
     profitable_cashback,
     investment_bank,
     find_phone_transactions,
@@ -223,6 +223,9 @@ def report_by_workday():
     except Exception as e:
         logger.error(f"Ошибка отчета по типам дней: {str(e)}")
         return json_response({"error": "Внутренняя ошибка сервера"}, 500)
+
+
+    return Response(response_data, status=status, mimetype="application/json")
 
 
 if __name__ == "__main__":
