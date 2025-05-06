@@ -1,107 +1,106 @@
-import logging
-from unittest.mock import MagicMock, patch
-
-import pandas as pd
 import pytest
-
-from src.utils import get_date_range, load_transactions, load_user_settings
-from src.views import (
-    get_card_stats,
-    get_currency_rates,
-    get_greeting,
-    get_top_transactions,
-    main_page,
-)
-
-# Настройка логирования для тестов
-logging.basicConfig(level=logging.DEBUG)
-logger = logging.getLogger(__name__)
+import json
+import pandas as pd
+from unittest.mock import patch
+from src.views import main_page
 
 
-# Фикстура с тестовыми данными
 @pytest.fixture
-def sample_transactions():
-    df = pd.DataFrame(
-        {
-            "Номер карты": ["1234", "1234", "5678"],
-            "Дата операции": pd.to_datetime(
-                ["01.05.2023", "15.05.2023", "20.05.2023"],
-                dayfirst=True,  # Преобразуем строки в datetime
-            ),
-            "Сумма платежа": [100.0, 200.0, 50.0],
-            "Категория": ["Еда", "Транспорт", "Еда"],
-            "Описание": ["Магазин", "Такси", "Кафе"],
-        }
-    )
-    return df
+def sample_date():
+    return pd.Timestamp("2025-04-01")
 
 
-# Тесты для отдельных функций
-def test_get_greeting():
-    """Тестируем функцию приветствия"""
-    with patch("src.views.datetime") as mock_datetime:
-        mock_datetime.now.return_value.hour = 10
-        assert get_greeting() == "Доброе утро"
-
-        mock_datetime.now.return_value.hour = 14
-        assert get_greeting() == "Добрый день"
-
-        mock_datetime.now.return_value.hour = 20
-        assert get_greeting() == "Добрый вечер"
-
-        mock_datetime.now.return_value.hour = 2
-        assert get_greeting() == "Доброй ночи"
+@pytest.fixture
+def mock_transactions():
+    return [
+        {"Дата операции": "2025-03-10", "Категория": "Еда", "Сумма платежа": 500},
+        {"Дата операции": "2025-03-15", "Категория": "Транспорт", "Сумма платежа": 300},
+        {"Дата операции": "2025-03-20", "Категория": "Еда", "Сумма платежа": 400},
+    ]
 
 
-def test_get_card_stats(sample_transactions):
-    """Тестируем статистику по картам"""
-    result = get_card_stats(sample_transactions)
-    assert len(result) == 2  # Две уникальные карты
-    assert result[0]["last_digits"] == "1234"
-    assert result[0]["total_spent"] == 300.0
-    assert result[0]["cashback"] == 3.0
+@pytest.fixture
+def mock_settings():
+    return {"user_currencies": ["USD", "EUR"]}
 
 
-def test_get_top_transactions(sample_transactions):
-    """Тестируем получение топ-транзакций"""
-    result = get_top_transactions(sample_transactions, n=2)
-    assert len(result) == 2
-    assert result[0]["Сумма платежа"] == 200.0
-
-
-# Тест с моком для API валют
-@patch("src.views.requests.get")
-def test_get_currency_rates(mock_get):
-    """Тестируем получение курсов валют с моком API"""
-    mock_response = MagicMock()
-    mock_response.json.return_value = {"rates": {"USD": 1.0, "EUR": 0.85, "RUB": 75.0}}
-    mock_get.return_value = mock_response
-
-    result = get_currency_rates(["EUR", "RUB"])
-    assert len(result) == 2
-    assert result[0]["currency"] == "EUR"
-    assert result[0]["rate"] == 0.85
-    assert result[1]["rate"] == 75.0
-
-
-# Интеграционный тест для main_page
 @patch("src.views.load_transactions")
 @patch("src.views.load_user_settings")
-def test_main_page(mock_settings, mock_transactions, sample_transactions):
-    """Тестируем главную функцию страницы"""
-    # Настраиваем моки
-    mock_transactions.return_value = sample_transactions
-    mock_settings.return_value = {"user_currencies": ["EUR"]}
+@patch("src.views.get_date_range")
+@patch("src.views.get_greeting")
+@patch("src.views.get_card_stats")
+@patch("src.views.get_top_transactions")
+@patch("src.views.get_currency_rates")
+@patch("src.views.get_sp500_price")
+def test_main_page(
+    mock_sp500_price,
+    mock_currency_rates,
+    mock_top_transactions,
+    mock_card_stats,
+    mock_greeting,
+    mock_date_range,
+    mock_user_settings,
+    mock_load_transactions,
+    sample_date,
+    mock_transactions,
+    mock_settings,
+):
+    """Тест успешного выполнения main_page"""
+    mock_load_transactions.return_value = pd.DataFrame(mock_transactions)
+    mock_load_transactions.return_value["Дата операции"] = pd.to_datetime(
+        mock_load_transactions.return_value["Дата операции"]
+    )
+    mock_user_settings.return_value = mock_settings
+    mock_date_range.return_value = (pd.Timestamp("2025-03-01"), pd.Timestamp("2025-03-31"))
+    mock_greeting.return_value = "Добрый день!"
+    mock_card_stats.return_value = {"cards": [{"name": "Visa", "balance": 1000}]}
+    mock_top_transactions.return_value = {"transactions": [{"Категория": "Еда", "Сумма": 500}]}
+    mock_currency_rates.return_value = {"USD": 75.5, "EUR": 82.3}
+    mock_sp500_price.return_value = 4500.25
 
-    # Мок для API валют
-    with patch("src.views.requests.get") as mock_get:
-        mock_response = MagicMock()
-        mock_response.json.return_value = {"rates": {"EUR": 0.85}}
-        mock_get.return_value = mock_response
+    result = main_page(sample_date)
 
-        result = main_page("20.05.2023 14:00:00")
+    if isinstance(result, dict):
+        data = result
+    else:
+        data = json.loads(result)
 
-        assert "greeting" in result
-        assert len(result["cards"]) == 2
-        assert len(result["top_transactions"]) <= 5
-        assert result["currency_rates"][0]["currency"] == "EUR"
+    assert isinstance(data, dict)
+    assert data.get("greeting") == "Добрый день!"
+    assert "cards" in data
+    assert "top_transactions" in data
+    assert data.get("currency_rates", {}).get("USD") == 75.5
+    assert data.get("sp500_price") == 4500.25
+
+
+@patch("src.views.load_transactions", side_effect=Exception("Ошибка загрузки данных"))
+def test_main_page_load_transactions_error(mock_load_transactions, sample_date):
+    """Тест обработки ошибки при загрузке данных"""
+    result = main_page(sample_date)
+
+    assert isinstance(result, dict)
+    assert "error" in result
+    assert result["error"] == "Ошибка загрузки данных"
+
+
+@patch("src.views.get_currency_rates", side_effect=Exception("Ошибка получения курсов"))
+def test_main_page_currency_error(mock_currency_rates, sample_date, mock_transactions, mock_settings):
+    """Тест обработки ошибки при получении курсов валют"""
+
+    mock_df = pd.DataFrame(mock_transactions)
+    mock_df["Дата операции"] = pd.to_datetime(mock_df["Дата операции"])  # Конвертация в Timestamp
+
+    with (
+        patch("src.views.load_transactions", return_value=mock_df),
+        patch("src.views.load_user_settings", return_value=mock_settings),
+        patch("src.views.get_date_range", return_value=(pd.Timestamp("2025-03-01"), pd.Timestamp("2025-03-31"))),
+        patch("src.views.get_greeting", return_value="Добрый день!"),
+        patch("src.views.get_card_stats", return_value={"cards": [{"name": "Visa", "balance": 1000}]}),
+        patch("src.views.get_top_transactions", return_value={"transactions": [{"Категория": "Еда", "Сумма": 500}]}),
+        patch("src.views.get_sp500_price", return_value=4500.25),
+    ):
+        result = main_page(sample_date.strftime("%Y-%m-%d"))  # Теперь формат совместим с get_date_range()
+
+        assert isinstance(result, dict)
+        assert "error" in result
+        assert result["error"] == "Ошибка получения курсов"

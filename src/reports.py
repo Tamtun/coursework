@@ -1,6 +1,5 @@
 import json
 import logging
-from datetime import datetime
 from functools import wraps
 from typing import Any, Callable, Optional
 
@@ -37,6 +36,7 @@ def report_to_file(filename: Optional[str] = None) -> Callable:
 @report_to_file()
 def spending_by_category(transactions: pd.DataFrame, category: str, date: Optional[str] = None) -> pd.DataFrame:
     try:
+        transactions["Дата операции"] = pd.to_datetime(transactions["Дата операции"], errors="coerce")
         target_date = pd.to_datetime(date) if date else pd.Timestamp.now()
         start_date = target_date - pd.DateOffset(months=3)
 
